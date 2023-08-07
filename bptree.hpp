@@ -1,109 +1,127 @@
-#ifndef BPTREE_HPP_BPTREE2_HPP
-#define BPTREE_HPP_BPTREE2_HPP
+#ifndef BPTREE_HPP_BPTREE_HPP
+#define BPTREE_HPP_BPTREE_HPP
 
 #include <fstream>
 #include "bufferList.hpp"
-#include "vector.hpp"
 
 template<class Key, class Value, int M = 100, int L = 100>
 class BPTree {
 private:
-    std::fstream file_tree, file_leaf;
-    int rear_tree, rear_leaf, sum_data;
-    const int len_of_head_leaf = 2 * sizeof(int);
-    const int len_of_head_tree = 2 * sizeof(int);
+    std::fstream treeNodeFile, leafFile;  // 存放树节点的文件和叶子节点的文件
+    int rearTreeNode, rearLeaf;           // 最后一个树节点的位置和最后一个叶子节点的位置
+    int sizeData;                         // 数据的个数
+    // 存放树节点的文件的头部长度（前面预留两个int的空间用来存储树节点数量和最后一个树节点位置）
+    const int headerLengthOfTreeNodeFile = 2 * sizeof(int);
+    // 存放叶子节点的文件的头部长度（前面预留两个int的空间用来存储叶子节点数量和最后一个叶子节点位置）
+    const int headerLengthOfLeafFile = 2 * sizeof(int);   
+    // 被删除的树节点和叶子节点的位置，在插入的时候优先使用这些位置 
     std::vector<int> emptyTreeNode;
     std::vector<int> emptyLeaf;
 
+    // B+树的节点
     struct TreeNode {
-        bool isBottomNode;
-        int pos, dataCount;
-        int childrenPos[M];
-        std::pair<Key, Value> septal[M - 1];  // septal[now]>=childrenPos[now]中所有元素; 0base
+        bool isBottomNode;  // 记录是否是叶子节点上面一层的节点
+        int pos, dataCount; // pos是节点的位置，dataCount是节点中子节点的个数
+        int childrenPos[M]; // 子节点的位置，0 base
+        std::pair<Key, Value> septal[M - 1]; // 各个子树之间的分隔关键字，0 base
     };
 
+    // B+树的叶子节点
     struct Leaf {
-        int nxt, pos;
-        int dataCount;
-        std::pair<Key, Value> value[L];//0 base
+        int nxt, pos;  // nxt是下一个叶子节点的位置，pos是当前叶子节点的位置
+        int dataCount; // dataCount是当前叶子节点中数据的个数
+        std::pair<Key, Value> value[L];  // 存放数据，0 base
     };
 
-    std::string file_tree_name, file_leaf_name;
-    bufferList<TreeNode> node_buffer;
-    bufferList<Leaf> leaf_buffer;
+    // 存放树节点的文件的名字和叶子节点的文件的名字
+    std::string treeNodeFileName, leafFileName;
+    // 用来存放树节点和叶子节点的缓冲区
+    bufferList<TreeNode> treeNodeBuffer;
+    bufferList<Leaf> leafBuffer;
+    // 树的根节点
     TreeNode root;
-    Leaf leaf;
 public:
+    // 构造函数；从文件中读取必要信息，在内存中记录树的根节点，元素个数等关键信息
     explicit BPTree(const std::string &name) {
-        file_tree_name = name + "_file_tree", file_leaf_name = name + "_file_leaf";
-        file_tree.open(file_tree_name);
-        file_leaf.open(file_leaf_name);
-        if (!file_leaf || !file_tree) { // 第一次打开文件 要新建文件 初始化一些东西进去
+        treeNodeFileName = name + "_treeNodeFile", leafFileName = name + "_leafFile";
+        treeNodeFile.open(treeNodeFileName);
+        leafFile.open(leafFileName);
+        if (!leafFile || !treeNodeFile) { // 如果文件不存在，就创建文件，并初始化
             initialize();
         } else {
-            file_tree.seekg(0), file_leaf.seekg(0);
-            int root_tree;
-            file_tree.read(reinterpret_cast<char *>(&root_tree), sizeof(int));
-            file_tree.read(reinterpret_cast<char *>(&rear_tree), sizeof(int));
-            file_tree.seekg(len_of_head_tree + root_tree * sizeof(TreeNode));
-            file_tree.read(reinterpret_cast<char *>(&root), sizeof(TreeNode));
-            int node_empty_size, leaf_empty_size;
-            file_tree.seekg(len_of_head_tree + (rear_tree + 1) * sizeof(TreeNode));
-            file_tree.read(reinterpret_cast<char *>(&node_empty_size), sizeof(int));
-            for (int i = 0; i < node_empty_size; i++) {
+            // 读取树节点文件的头部，得到树的根节点的位置和最后一个树节点的位置
+            treeNodeFile.seekg(0), leafFile.seekg(0);
+            int rootPos;
+            treeNodeFile.read(reinterpret_cast<char *>(&rootPos), sizeof(int));
+            treeNodeFile.read(reinterpret_cast<char *>(&rearTreeNode), sizeof(int));
+            // 找到并读取树的根节点
+            treeNodeFile.seekg(headerLengthOfTreeNodeFile + rootPos * sizeof(TreeNode));
+            treeNodeFile.read(reinterpret_cast<char *>(&root), sizeof(TreeNode));
+            // 最后一个树节点后面存放了被删除的树节点
+            int treeNodeEmptySize, leafEmptySize;
+            treeNodeFile.seekg(headerLengthOfTreeNodeFile + (rearTreeNode + 1) * sizeof(TreeNode));
+            // 读取被删除的树节点的数量和位置
+            treeNodeFile.read(reinterpret_cast<char *>(&treeNodeEmptySize), sizeof(int));
+            for (int i = 0; i < treeNodeEmptySize; i++) {
                 int data;
-                file_tree.read(reinterpret_cast<char *>(&data), sizeof(int));
+                treeNodeFile.read(reinterpret_cast<char *>(&data), sizeof(int));
                 emptyTreeNode.push_back(data);
             }
-            file_leaf.read(reinterpret_cast<char *>(&rear_leaf), sizeof(int));
-            file_leaf.read(reinterpret_cast<char *>(&sum_data), sizeof(int));
-            file_leaf.seekg(len_of_head_leaf + (rear_leaf + 1) * sizeof(Leaf));
-            file_leaf.read(reinterpret_cast<char *>(&leaf_empty_size), sizeof(int));
-            for (int i = 0; i < leaf_empty_size; i++) {
+            // 读取叶子节点文件的头部，得到最后一个叶子节点的位置
+            leafFile.read(reinterpret_cast<char *>(&rearLeaf), sizeof(int));
+            // 插入的记录的数量存放在叶子节点文件的头部的第二个int中
+            leafFile.read(reinterpret_cast<char *>(&sizeData), sizeof(int));
+            // 最后一个叶子节点后面存放了被删除的叶子节点
+            leafFile.seekg(headerLengthOfLeafFile + (rearLeaf + 1) * sizeof(Leaf));
+            // 读取被删除的叶子节点的数量和位置
+            leafFile.read(reinterpret_cast<char *>(&leafEmptySize), sizeof(int));
+            for (int i = 0; i < leafEmptySize; i++) {
                 int data;
-                file_leaf.read(reinterpret_cast<char *>(&data), sizeof(int));
+                leafFile.read(reinterpret_cast<char *>(&data), sizeof(int));
                 emptyLeaf.push_back(data);
             }
         }
     }
 
+    // 析构函数；将树的根节点，被删除的节点的位置等信息写入文件
     ~BPTree() {
-        file_tree.seekg(0), file_leaf.seekg(0);
-        file_tree.write(reinterpret_cast<char *>(&root.pos), sizeof(int));
-        file_tree.write(reinterpret_cast<char *>(&rear_tree), sizeof(int));
-        write_node(root);
-        file_leaf.write(reinterpret_cast<char *>(&rear_leaf), sizeof(int));
-        file_leaf.write(reinterpret_cast<char *>(&sum_data), sizeof(int));
-        while (!node_buffer.empty()) {
-            TreeNode tmp = node_buffer.pop_back();
-            file_tree.seekg(tmp.pos * sizeof(TreeNode) + len_of_head_tree);
-            file_tree.write(reinterpret_cast<char *>(&tmp), sizeof(TreeNode));
+        // 将树的根节点，最后一个树节点的位置写入文件
+        treeNodeFile.seekg(0), leafFile.seekg(0);
+        treeNodeFile.write(reinterpret_cast<char *>(&root.pos), sizeof(int));
+        treeNodeFile.write(reinterpret_cast<char *>(&rearTreeNode), sizeof(int));
+        writeNode(root);
+        leafFile.write(reinterpret_cast<char *>(&rearLeaf), sizeof(int));
+        leafFile.write(reinterpret_cast<char *>(&sizeData), sizeof(int));
+        while (!treeNodeBuffer.empty()) {
+            TreeNode tmp = treeNodeBuffer.pop_back();
+            treeNodeFile.seekg(tmp.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
+            treeNodeFile.write(reinterpret_cast<char *>(&tmp), sizeof(TreeNode));
         }
-        while (!leaf_buffer.empty()) {
-            Leaf tmp = leaf_buffer.pop_back();
-            file_leaf.seekg(tmp.pos * sizeof(Leaf) + len_of_head_leaf);
-            file_leaf.write(reinterpret_cast<char *>(&tmp), sizeof(Leaf));
+        while (!leafBuffer.empty()) {
+            Leaf tmp = leafBuffer.pop_back();
+            leafFile.seekg(tmp.pos * sizeof(Leaf) + headerLengthOfLeafFile);
+            leafFile.write(reinterpret_cast<char *>(&tmp), sizeof(Leaf));
         }
-        file_tree.seekg(len_of_head_tree + (rear_tree + 1) * sizeof(TreeNode));
+        treeNodeFile.seekg(headerLengthOfTreeNodeFile + (rearTreeNode + 1) * sizeof(TreeNode));
         int size_tree = emptyTreeNode.size(), size_leaf = emptyLeaf.size();
-        file_tree.write(reinterpret_cast<char *>(&size_tree), sizeof(int));
+        treeNodeFile.write(reinterpret_cast<char *>(&size_tree), sizeof(int));
         for (int i = 0; i < emptyTreeNode.size(); i++) {
-            file_tree.write(reinterpret_cast<char *>(&emptyTreeNode[i]), sizeof(int));
+            treeNodeFile.write(reinterpret_cast<char *>(&emptyTreeNode[i]), sizeof(int));
         }
-        file_leaf.seekg(len_of_head_leaf + (rear_leaf + 1) * sizeof(Leaf));
-        file_leaf.write(reinterpret_cast<char *>(&size_leaf), sizeof(int));
+        leafFile.seekg(headerLengthOfLeafFile + (rearLeaf + 1) * sizeof(Leaf));
+        leafFile.write(reinterpret_cast<char *>(&size_leaf), sizeof(int));
         for (int i = 0; i < emptyLeaf.size(); i++) {
-            file_leaf.write(reinterpret_cast<char *>(&emptyLeaf[i]), sizeof(int));
+            leafFile.write(reinterpret_cast<char *>(&emptyLeaf[i]), sizeof(int));
         }
-        file_leaf.close();
-        file_tree.close();
+        leafFile.close();
+        treeNodeFile.close();
     }
 
-    int size() { return sum_data; }
+    int size() { return sizeData; }
 
     void insert(const std::pair<Key, Value> &val) {
         if (insertDfs(val, root)) {  // 分裂根节点
-            TreeNode new_root;  // 创建一个新的根节点
+            TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
             newNode.pos = getRearNode(), newNode.isBottomNode = root.isBottomNode, newNode.dataCount = M / 2;
             int mid = M / 2;  // 对半分
@@ -114,16 +132,16 @@ public:
                 newNode.septal[i] = root.septal[mid + i];
             }
             root.dataCount = mid;
-            write_node(root);
-            write_node(newNode);
-            new_root.dataCount = 2;
-            new_root.pos = getRearNode();
-            new_root.isBottomNode = false;
-            new_root.childrenPos[0] = root.pos;
-            new_root.childrenPos[1] = newNode.pos;
-            new_root.septal[0] = root.septal[mid - 1];
-            root = new_root;
-            write_node(root);
+            writeNode(root);
+            writeNode(newNode);
+            newRoot.dataCount = 2;
+            newRoot.pos = getRearNode();
+            newRoot.isBottomNode = false;
+            newRoot.childrenPos[0] = root.pos;
+            newRoot.childrenPos[1] = newNode.pos;
+            newRoot.septal[0] = root.septal[mid - 1];
+            root = newRoot;
+            writeNode(root);
         }
     }
 
@@ -168,7 +186,7 @@ public:
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
                 TreeNode son;
                 readTreeNode(son, root.childrenPos[0]);
-                node_buffer.remove(root.pos);
+                treeNodeBuffer.remove(root.pos);
                 emptyTreeNode.push_back(root.pos);
                 root = son;
             }
@@ -181,10 +199,10 @@ public:
     }
 
     void clear() {
-        file_tree.close();
-        file_leaf.close();
-        node_buffer.clear();
-        leaf_buffer.clear();
+        treeNodeFile.close();
+        leafFile.close();
+        treeNodeBuffer.clear();
+        leafBuffer.clear();
         emptyTreeNode.clear();
         emptyLeaf.clear();
         initialize();
@@ -220,7 +238,7 @@ private:
             if (pos_leaf == leaf.dataCount || leaf.value[pos_leaf] != val) {
                 return false;  // 删除失败 return false
             }
-            leaf.dataCount--, sum_data--;
+            leaf.dataCount--, sizeData--;
             for (int i = pos_leaf; i < leaf.dataCount; i++) {
                 leaf.value[i] = leaf.value[i + 1];  // 移动删除数据
             }
@@ -237,7 +255,7 @@ private:
                         fa.septal[pos_node - 1] = pre.value[pre.dataCount - 1];
                         write_leaf(leaf);
                         write_leaf(pre);
-                        write_node(fa);
+                        writeNode(fa);
                         return false;
                     }
                 }
@@ -252,7 +270,7 @@ private:
                         }
                         write_leaf(leaf);
                         write_leaf(nxt);
-                        write_node(fa);
+                        writeNode(fa);
                         return false;
                     }
                 }
@@ -264,7 +282,7 @@ private:
                     pre.dataCount += leaf.dataCount;
                     pre.nxt = leaf.nxt;
                     write_leaf(pre);
-                    leaf_buffer.remove(leaf.pos);
+                    leafBuffer.remove(leaf.pos);
                     emptyLeaf.push_back(leaf.pos);
                     //更新fa的关键字和数据
                     fa.dataCount--;
@@ -277,7 +295,7 @@ private:
                     if (fa.dataCount < M / 2) {  // 需要继续调整
                         return true;
                     }
-                    write_node(fa);
+                    writeNode(fa);
                     return false;
                 }
                 if (pos_node + 1 < fa.dataCount) {  // 后面有兄弟 和后面合并
@@ -287,7 +305,7 @@ private:
                     leaf.dataCount += nxt.dataCount;
                     leaf.nxt = nxt.nxt;
                     write_leaf(leaf);
-                    leaf_buffer.remove(nxt.pos);
+                    leafBuffer.remove(nxt.pos);
                     emptyLeaf.push_back(nxt.pos);
                     fa.dataCount--;
                     //更新fa的关键字和数据
@@ -300,7 +318,7 @@ private:
                     if (fa.dataCount < M / 2) {  // 需要继续调整
                         return true;
                     }
-                    write_node(fa);
+                    writeNode(fa);
                     return false;
                 }
                 write_leaf(leaf);
@@ -325,9 +343,9 @@ private:
                     son.childrenPos[0] = pre.childrenPos[pre.dataCount];
                     son.septal[0] = fa.septal[now - 1];
                     fa.septal[now - 1] = pre.septal[pre.dataCount - 1];
-                    write_node(son);
-                    write_node(pre);
-                    write_node(fa);
+                    writeNode(son);
+                    writeNode(pre);
+                    writeNode(fa);
                     return false;
                 }
             }
@@ -344,9 +362,9 @@ private:
                     for (int i = 0; i < nxt.dataCount - 1; i++) {
                         nxt.septal[i] = nxt.septal[i + 1];
                     }
-                    write_node(son);
-                    write_node(nxt);
-                    write_node(fa);
+                    writeNode(son);
+                    writeNode(nxt);
+                    writeNode(fa);
                     return false;
                 }
             }
@@ -359,8 +377,8 @@ private:
                     pre.septal[pre.dataCount + i] = son.septal[i];
                 }
                 pre.dataCount += son.dataCount;
-                write_node(pre);
-                node_buffer.remove(son.pos);
+                writeNode(pre);
+                treeNodeBuffer.remove(son.pos);
                 emptyTreeNode.push_back(son.pos);
                 fa.dataCount--;
                 for (int i = now; i < fa.dataCount; i++) {
@@ -370,7 +388,7 @@ private:
                     fa.septal[i] = fa.septal[i + 1];
                 }
                 if (fa.dataCount < M / 2)return true;
-                write_node(fa);
+                writeNode(fa);
                 return false;
             }
             if (now + 1 < fa.dataCount) {
@@ -382,8 +400,8 @@ private:
                     son.septal[son.dataCount + i] = nxt.septal[i];
                 }
                 son.dataCount += nxt.dataCount;
-                write_node(son);
-                node_buffer.remove(nxt.pos);
+                writeNode(son);
+                treeNodeBuffer.remove(nxt.pos);
                 emptyTreeNode.push_back(nxt.pos);
                 fa.dataCount--;
                 for (int i = now + 1; i < fa.dataCount; i++) {
@@ -393,7 +411,7 @@ private:
                     fa.septal[i] = fa.septal[i + 1];
                 }
                 if (fa.dataCount < M / 2)return true;
-                write_node(fa);
+                writeNode(fa);
                 return false;
             }
         }
@@ -405,14 +423,14 @@ private:
             int pos_node = binarySearchTreeNodeValue(val, fa);
             readLeaf(leaf, fa.childrenPos[pos_node]);
             int pos_leaf = binary_search_leaf_val(val, leaf);
-            leaf.dataCount++, sum_data++;
+            leaf.dataCount++, sizeData++;
             for (int i = leaf.dataCount - 1; i > pos_leaf; i--) {
                 leaf.value[i] = leaf.value[i - 1];
             }
             leaf.value[pos_leaf] = val;
             if (leaf.dataCount == L) {//裂块
                 Leaf new_leaf;
-                new_leaf.pos = get_rear_leaf();
+                new_leaf.pos = get_rearLeaf();
                 new_leaf.nxt = leaf.nxt;
                 leaf.nxt = new_leaf.pos;
                 int mid = L / 2;
@@ -433,7 +451,7 @@ private:
                 fa.dataCount++;
                 if (fa.dataCount == M) {  // 需要继续分裂
                     return true;
-                } else write_node(fa);
+                } else writeNode(fa);
                 return false;
             }
             write_leaf(leaf);
@@ -453,8 +471,8 @@ private:
                 newNode.septal[i] = son.septal[mid + i];
             }
             newNode.dataCount = son.dataCount = mid;
-            write_node(son);
-            write_node(newNode);
+            writeNode(son);
+            writeNode(newNode);
             for (int i = fa.dataCount; i > now + 1; i--) {
                 fa.childrenPos[i] = fa.childrenPos[i - 1];
             }
@@ -466,43 +484,43 @@ private:
             fa.dataCount++;
             if (fa.dataCount == M) {  // 需要继续分裂
                 return true;
-            } else write_node(fa);
+            } else writeNode(fa);
             return false;
         } else return false;
     }
 
-    void write_node(const TreeNode &node) {
-        std::pair<bool, TreeNode> buffer = node_buffer.insert(node);
+    void writeNode(const TreeNode &node) {
+        std::pair<bool, TreeNode> buffer = treeNodeBuffer.insert(node);
         if (buffer.first) {
-            file_tree.seekg(buffer.second.pos * sizeof(TreeNode) + len_of_head_tree);
-            file_tree.write(reinterpret_cast<char *>(&buffer.second), sizeof(TreeNode));
+            treeNodeFile.seekg(buffer.second.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
+            treeNodeFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(TreeNode));
         }
     }
 
     void write_leaf(const Leaf &lef) {
-        std::pair<bool, Leaf> buffer = leaf_buffer.insert(lef);
+        std::pair<bool, Leaf> buffer = leafBuffer.insert(lef);
         if (buffer.first) {
-            file_leaf.seekg(buffer.second.pos * sizeof(Leaf) + len_of_head_leaf);
-            file_leaf.write(reinterpret_cast<char *>(&buffer.second), sizeof(Leaf));
+            leafFile.seekg(buffer.second.pos * sizeof(Leaf) + headerLengthOfLeafFile);
+            leafFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(Leaf));
         }
     }
 
     void readTreeNode(TreeNode &node, int pos) {
-        std::pair<bool, TreeNode> buffer = node_buffer.find(pos);
+        std::pair<bool, TreeNode> buffer = treeNodeBuffer.find(pos);
         if (buffer.first) node = buffer.second;
         else {
-            file_tree.seekg(pos * sizeof(TreeNode) + len_of_head_tree);
-            file_tree.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
+            treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
+            treeNodeFile.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
         }
-        write_node(node);
+        writeNode(node);
     }
 
     void readLeaf(Leaf &lef, int pos) {
-        std::pair<bool, Leaf> buffer = leaf_buffer.find(pos);
+        std::pair<bool, Leaf> buffer = leafBuffer.find(pos);
         if (buffer.first) lef = buffer.second;
         else {
-            file_leaf.seekg(pos * sizeof(Leaf) + len_of_head_leaf);
-            file_leaf.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
+            leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
+            leafFile.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
         }
         write_leaf(lef);
     }
@@ -549,24 +567,24 @@ private:
     }
 
     void initialize() {
-        file_tree.open(file_tree_name, std::ios::out);
-        file_leaf.open(file_leaf_name, std::ios::out);
-        root.isBottomNode = root.pos = root.childrenPos[0] = 1, sum_data = 0;
+        treeNodeFile.open(treeNodeFileName, std::ios::out);
+        leafFile.open(leafFileName, std::ios::out);
+        root.isBottomNode = root.pos = root.childrenPos[0] = 1, sizeData = 0;
         root.dataCount = 1;
-        rear_leaf = rear_tree = 1;//1 base
+        rearLeaf = rearTreeNode = 1;//1 base
         Leaf ini_leaf;
         ini_leaf.nxt = ini_leaf.dataCount = 0;
         ini_leaf.pos = 1;
         write_leaf(ini_leaf);
-        file_tree.close();
-        file_leaf.close();
-        file_tree.open(file_tree_name);
-        file_leaf.open(file_leaf_name);
+        treeNodeFile.close();
+        leafFile.close();
+        treeNodeFile.open(treeNodeFileName);
+        leafFile.open(leafFileName);
     }
 
     int getRearNode() {
         if (emptyTreeNode.empty()) {
-            return ++rear_tree;
+            return ++rearTreeNode;
         } else {
             int newIndex = emptyTreeNode.back();
             emptyTreeNode.pop_back();
@@ -574,9 +592,9 @@ private:
         }
     }
 
-    int get_rear_leaf() {
+    int get_rearLeaf() {
         if (emptyLeaf.empty()) {
-            return ++rear_leaf;
+            return ++rearLeaf;
         } else {
             int newIndex = emptyLeaf.back();
             emptyLeaf.pop_back();
@@ -585,4 +603,4 @@ private:
     }
 };
 
-#endif //BPTREE_HPP_BPTREE2_HPP
+#endif //BPTREE_HPP_BPTREE_HPP
