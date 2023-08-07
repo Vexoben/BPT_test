@@ -75,12 +75,12 @@ public:
     }
 
 
-    //判断bufferlist是否为空
+    // 判断bufferlist是否为空
     bool empty() {
         return size == 0;
     }
 
-    //弹出需要写入的节点 从尾弹出
+    // 弹出需要写入的节点 从尾弹出
     T pop_back() {
         linkNode *p = head->nxt;
         p->fro->nxt = p->nxt;
@@ -93,14 +93,14 @@ public:
 
     void clear(){
         linkNode *p,*del;
-        p=head->nxt;
-        while(p!=rear){
-            del=p;
-            p=p->nxt;
+        p = head->nxt;
+        while(p!=rear) {
+            del = p;
+            p = p->nxt;
             delete del;
         }
-        head->nxt=rear;
-        rear->fro=head;
+        head->nxt = rear;
+        rear->fro = head;
     }
 
 };

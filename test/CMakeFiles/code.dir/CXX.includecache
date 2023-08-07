@@ -6,13 +6,13 @@
 
 #IncludeRegexTransform: 
 
-/mnt/f/github/BPT_test/bptree_roll.hpp
+/mnt/f/github/BPT_test/bptree.hpp
+vector
+-
 fstream
 -
 bufferList.hpp
 /mnt/f/github/BPT_test/bufferList.hpp
-vector.hpp
-/mnt/f/github/BPT_test/vector.hpp
 
 /mnt/f/github/BPT_test/bufferList.hpp
 
@@ -20,14 +20,6 @@ vector.hpp
 iostream
 -
 fstream
--
-
-/mnt/f/github/BPT_test/exceptions.hpp
-cstddef
--
-cstring
--
-string
 -
 
 /mnt/f/github/BPT_test/main.cpp
@@ -35,18 +27,12 @@ iostream
 -
 cstdio
 -
-vector.hpp
-/mnt/f/github/BPT_test/vector.hpp
-bptree_roll.hpp
-/mnt/f/github/BPT_test/bptree_roll.hpp
+cstring
+-
+vector
+-
+bptree.hpp
+/mnt/f/github/BPT_test/bptree.hpp
 database.hpp
 /mnt/f/github/BPT_test/database.hpp
-
-/mnt/f/github/BPT_test/vector.hpp
-exceptions.hpp
-/mnt/f/github/BPT_test/exceptions.hpp
-climits
--
-cstddef
--
 

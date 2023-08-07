@@ -1,6 +1,7 @@
 #ifndef BPTREE_HPP_BPTREE_HPP
 #define BPTREE_HPP_BPTREE_HPP
 
+#include <vector>
 #include <fstream>
 #include "bufferList.hpp"
 
@@ -40,10 +41,12 @@ private:
     bufferList<Leaf> leafBuffer;
     // 树的根节点
     TreeNode root;
+    Leaf leaf;
 public:
     // 构造函数；从文件中读取必要信息，在内存中记录树的根节点，元素个数等关键信息
     explicit BPTree(const std::string &name) {
         treeNodeFileName = name + "_treeNodeFile", leafFileName = name + "_leafFile";
+        // 打开文件，一个存放树节点，一个存放叶子节点
         treeNodeFile.open(treeNodeFileName);
         leafFile.open(leafFileName);
         if (!leafFile || !treeNodeFile) { // 如果文件不存在，就创建文件，并初始化
@@ -85,13 +88,17 @@ public:
 
     // 析构函数；将树的根节点，被删除的节点的位置等信息写入文件
     ~BPTree() {
-        // 将树的根节点，最后一个树节点的位置写入文件
+        // 将树的根节点、最后一个树节点的位置写入文件
         treeNodeFile.seekg(0), leafFile.seekg(0);
         treeNodeFile.write(reinterpret_cast<char *>(&root.pos), sizeof(int));
         treeNodeFile.write(reinterpret_cast<char *>(&rearTreeNode), sizeof(int));
-        writeNode(root);
+        // 将树的根节点写入文件
+        writeTreeNode(root);
+        // 将最后一个叶子节点的位置写入文件
         leafFile.write(reinterpret_cast<char *>(&rearLeaf), sizeof(int));
+        // 将插入的记录的数量写入文件
         leafFile.write(reinterpret_cast<char *>(&sizeData), sizeof(int));
+        // 将缓存中的树节点和叶子节点写入文件
         while (!treeNodeBuffer.empty()) {
             TreeNode tmp = treeNodeBuffer.pop_back();
             treeNodeFile.seekg(tmp.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
@@ -102,28 +109,33 @@ public:
             leafFile.seekg(tmp.pos * sizeof(Leaf) + headerLengthOfLeafFile);
             leafFile.write(reinterpret_cast<char *>(&tmp), sizeof(Leaf));
         }
+        // 将被删除的树节点和叶子节点的位置写入文件
         treeNodeFile.seekg(headerLengthOfTreeNodeFile + (rearTreeNode + 1) * sizeof(TreeNode));
-        int size_tree = emptyTreeNode.size(), size_leaf = emptyLeaf.size();
-        treeNodeFile.write(reinterpret_cast<char *>(&size_tree), sizeof(int));
+        int emptyTreeNodeCount = emptyTreeNode.size(), emptyLeafCount = emptyLeaf.size();
+        treeNodeFile.write(reinterpret_cast<char *>(&emptyTreeNodeCount), sizeof(int));
         for (int i = 0; i < emptyTreeNode.size(); i++) {
             treeNodeFile.write(reinterpret_cast<char *>(&emptyTreeNode[i]), sizeof(int));
         }
         leafFile.seekg(headerLengthOfLeafFile + (rearLeaf + 1) * sizeof(Leaf));
-        leafFile.write(reinterpret_cast<char *>(&size_leaf), sizeof(int));
+        leafFile.write(reinterpret_cast<char *>(&emptyLeafCount), sizeof(int));
         for (int i = 0; i < emptyLeaf.size(); i++) {
             leafFile.write(reinterpret_cast<char *>(&emptyLeaf[i]), sizeof(int));
         }
+        // 关闭文件
         leafFile.close();
         treeNodeFile.close();
     }
 
     int size() { return sizeData; }
 
+    // 插入记录
     void insert(const std::pair<Key, Value> &val) {
         if (insertDfs(val, root)) {  // 分裂根节点
             TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
-            newNode.pos = getRearNode(), newNode.isBottomNode = root.isBottomNode, newNode.dataCount = M / 2;
+            newNode.pos = getRearNode();
+            newNode.isBottomNode = root.isBottomNode;
+            newNode.dataCount = M / 2;
             int mid = M / 2;  // 对半分
             for (int i = 0; i < mid; i++) {
                 newNode.childrenPos[i] = root.childrenPos[mid + i];
@@ -132,8 +144,8 @@ public:
                 newNode.septal[i] = root.septal[mid + i];
             }
             root.dataCount = mid;
-            writeNode(root);
-            writeNode(newNode);
+            writeTreeNode(root);
+            writeTreeNode(newNode);
             newRoot.dataCount = 2;
             newRoot.pos = getRearNode();
             newRoot.isBottomNode = false;
@@ -141,19 +153,20 @@ public:
             newRoot.childrenPos[1] = newNode.pos;
             newRoot.septal[0] = root.septal[mid - 1];
             root = newRoot;
-            writeNode(root);
+            writeTreeNode(root);
         }
     }
 
-    std::vector<Value> Find(const Key &key) {
+    // 查询记录；返回一个vector，因为可能一个key对应多个value
+    std::vector<Value> find(const Key &key) {
         std::vector<Value> ans;
         TreeNode p = root;
         while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
             readTreeNode(p, p.childrenPos[binarySearchTreeNode(key, p)]); 
         }
         readLeaf(leaf, p.childrenPos[binarySearchTreeNode(key, p)]);  // 找到叶子节点
-        int now = binarySearchLeaf(key, leaf);
-        while (now < leaf.dataCount && leaf.value[now].first == key) {
+        int now = binarySearchLeaf(key, leaf);  // 在叶子节点中二分查找，找到第一个大于等于key的位置
+        while (now < leaf.dataCount && leaf.value[now].first == key) {  // 读取所有关键字等于key的记录
             ans.push_back(leaf.value[now++].second);
         }
         while (leaf.nxt && now == leaf.dataCount) {  // 读到文件尾 寻找下一块
@@ -164,21 +177,6 @@ public:
             }
         }
         return ans;
-    }
-
-    std::pair<bool, Value> find(const Key &key) {
-        Value val;
-        TreeNode p = root;
-        while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
-            readTreeNode(p, p.childrenPos[binarySearchTreeNode(key, p)]);
-        }
-        readLeaf(leaf, p.childrenPos[binarySearchTreeNode(key, p)]);//找到叶子节点
-        int now = binarySearchLeaf(key, leaf);
-        bool flag = true;
-        if (now == leaf.dataCount || leaf.value[now].first != key) {
-            flag = false;
-        }
-        return std::make_pair(flag, leaf.value[now].second);
     }
 
     void remove(const std::pair<Key, Value> &val) {
@@ -232,97 +230,97 @@ public:
 private:
     bool removeDfs(const std::pair<Key, Value> &val, TreeNode &fa) {
         if (fa.isBottomNode) {  // 若已经找到叶子
-            int pos_node = binarySearchTreeNodeValue(val, fa);  // 找到叶节点的位置
-            readLeaf(leaf, fa.childrenPos[pos_node]);  // 读入叶节点
-            int pos_leaf = binary_search_leaf_val(val, leaf);  // 找到数据在叶节点中的位置
-            if (pos_leaf == leaf.dataCount || leaf.value[pos_leaf] != val) {
+            int nodePos = binarySearchTreeNodeValue(val, fa);  // 找到叶节点的位置
+            readLeaf(leaf, fa.childrenPos[nodePos]);  // 读入叶节点
+            int leafPos = binarySearchLeafValue(val, leaf);  // 找到数据在叶节点中的位置
+            if (leafPos == leaf.dataCount || leaf.value[leafPos] != val) {
                 return false;  // 删除失败 return false
             }
             leaf.dataCount--, sizeData--;
-            for (int i = pos_leaf; i < leaf.dataCount; i++) {
+            for (int i = leafPos; i < leaf.dataCount; i++) {
                 leaf.value[i] = leaf.value[i + 1];  // 移动删除数据
             }
             if (leaf.dataCount < L / 2) {  // 并块
                 Leaf pre, nxt;
-                if (pos_node - 1 >= 0) {  // 若有前面的兄弟
-                    readLeaf(pre, fa.childrenPos[pos_node - 1]);
+                if (nodePos - 1 >= 0) {  // 若有前面的兄弟
+                    readLeaf(pre, fa.childrenPos[nodePos - 1]);
                     if (pre.dataCount > L / 2) {  // 若前面的兄弟有足够多的儿子可以借
                         leaf.dataCount++, pre.dataCount--;
                         for (int i = leaf.dataCount - 1; i > 0; i--) {
                             leaf.value[i] = leaf.value[i - 1];
                         }
                         leaf.value[0] = pre.value[pre.dataCount];
-                        fa.septal[pos_node - 1] = pre.value[pre.dataCount - 1];
-                        write_leaf(leaf);
-                        write_leaf(pre);
-                        writeNode(fa);
+                        fa.septal[nodePos - 1] = pre.value[pre.dataCount - 1];
+                        writeLeaf(leaf);
+                        writeLeaf(pre);
+                        writeTreeNode(fa);
                         return false;
                     }
                 }
-                if (pos_node + 1 < fa.dataCount) {  // 若有后面的兄弟
-                    readLeaf(nxt, fa.childrenPos[pos_node + 1]);
+                if (nodePos + 1 < fa.dataCount) {  // 若有后面的兄弟
+                    readLeaf(nxt, fa.childrenPos[nodePos + 1]);
                     if (nxt.dataCount > L / 2) {  // 若后面的兄弟有足够多的儿子借
                         leaf.dataCount++, nxt.dataCount--;
                         leaf.value[leaf.dataCount - 1] = nxt.value[0];
-                        fa.septal[pos_node] = nxt.value[0];
+                        fa.septal[nodePos] = nxt.value[0];
                         for (int i = 0; i < nxt.dataCount; i++) {
                             nxt.value[i] = nxt.value[i + 1];
                         }
-                        write_leaf(leaf);
-                        write_leaf(nxt);
-                        writeNode(fa);
+                        writeLeaf(leaf);
+                        writeLeaf(nxt);
+                        writeTreeNode(fa);
                         return false;
                     }
                 }
                 //前后都没有兄弟可以借儿子
-                if (pos_node - 1 >= 0) {  // 前面有兄弟 和前面合并
+                if (nodePos - 1 >= 0) {  // 前面有兄弟 和前面合并
                     for (int i = 0; i < leaf.dataCount; i++) {
                         pre.value[pre.dataCount + i] = leaf.value[i];
                     }
                     pre.dataCount += leaf.dataCount;
                     pre.nxt = leaf.nxt;
-                    write_leaf(pre);
+                    writeLeaf(pre);
                     leafBuffer.remove(leaf.pos);
                     emptyLeaf.push_back(leaf.pos);
                     //更新fa的关键字和数据
                     fa.dataCount--;
-                    for (int i = pos_node; i < fa.dataCount; i++) {
+                    for (int i = nodePos; i < fa.dataCount; i++) {
                         fa.childrenPos[i] = fa.childrenPos[i + 1];
                     }
-                    for (int i = pos_node - 1; i < fa.dataCount - 1; i++) {
+                    for (int i = nodePos - 1; i < fa.dataCount - 1; i++) {
                         fa.septal[i] = fa.septal[i + 1];
                     }
                     if (fa.dataCount < M / 2) {  // 需要继续调整
                         return true;
                     }
-                    writeNode(fa);
+                    writeTreeNode(fa);
                     return false;
                 }
-                if (pos_node + 1 < fa.dataCount) {  // 后面有兄弟 和后面合并
+                if (nodePos + 1 < fa.dataCount) {  // 后面有兄弟 和后面合并
                     for (int i = 0; i < nxt.dataCount; i++) {
                         leaf.value[leaf.dataCount + i] = nxt.value[i];
                     }
                     leaf.dataCount += nxt.dataCount;
                     leaf.nxt = nxt.nxt;
-                    write_leaf(leaf);
+                    writeLeaf(leaf);
                     leafBuffer.remove(nxt.pos);
                     emptyLeaf.push_back(nxt.pos);
                     fa.dataCount--;
                     //更新fa的关键字和数据
-                    for (int i = pos_node + 1; i < fa.dataCount; i++) {
+                    for (int i = nodePos + 1; i < fa.dataCount; i++) {
                         fa.childrenPos[i] = fa.childrenPos[i + 1];
                     }
-                    for (int i = pos_node; i < fa.dataCount - 1; i++) {
+                    for (int i = nodePos; i < fa.dataCount - 1; i++) {
                         fa.septal[i] = fa.septal[i + 1];
                     }
                     if (fa.dataCount < M / 2) {  // 需要继续调整
                         return true;
                     }
-                    writeNode(fa);
+                    writeTreeNode(fa);
                     return false;
                 }
-                write_leaf(leaf);
-            } else write_leaf(leaf);
+                writeLeaf(leaf);
+            } else writeLeaf(leaf);
             return false;
         }
         TreeNode son;
@@ -343,9 +341,9 @@ private:
                     son.childrenPos[0] = pre.childrenPos[pre.dataCount];
                     son.septal[0] = fa.septal[now - 1];
                     fa.septal[now - 1] = pre.septal[pre.dataCount - 1];
-                    writeNode(son);
-                    writeNode(pre);
-                    writeNode(fa);
+                    writeTreeNode(son);
+                    writeTreeNode(pre);
+                    writeTreeNode(fa);
                     return false;
                 }
             }
@@ -362,9 +360,9 @@ private:
                     for (int i = 0; i < nxt.dataCount - 1; i++) {
                         nxt.septal[i] = nxt.septal[i + 1];
                     }
-                    writeNode(son);
-                    writeNode(nxt);
-                    writeNode(fa);
+                    writeTreeNode(son);
+                    writeTreeNode(nxt);
+                    writeTreeNode(fa);
                     return false;
                 }
             }
@@ -377,7 +375,7 @@ private:
                     pre.septal[pre.dataCount + i] = son.septal[i];
                 }
                 pre.dataCount += son.dataCount;
-                writeNode(pre);
+                writeTreeNode(pre);
                 treeNodeBuffer.remove(son.pos);
                 emptyTreeNode.push_back(son.pos);
                 fa.dataCount--;
@@ -388,7 +386,7 @@ private:
                     fa.septal[i] = fa.septal[i + 1];
                 }
                 if (fa.dataCount < M / 2)return true;
-                writeNode(fa);
+                writeTreeNode(fa);
                 return false;
             }
             if (now + 1 < fa.dataCount) {
@@ -400,7 +398,7 @@ private:
                     son.septal[son.dataCount + i] = nxt.septal[i];
                 }
                 son.dataCount += nxt.dataCount;
-                writeNode(son);
+                writeTreeNode(son);
                 treeNodeBuffer.remove(nxt.pos);
                 emptyTreeNode.push_back(nxt.pos);
                 fa.dataCount--;
@@ -411,7 +409,7 @@ private:
                     fa.septal[i] = fa.septal[i + 1];
                 }
                 if (fa.dataCount < M / 2)return true;
-                writeNode(fa);
+                writeTreeNode(fa);
                 return false;
             }
         }
@@ -420,14 +418,14 @@ private:
 
     bool insertDfs(const std::pair<Key, Value> &val, TreeNode &fa) {
         if (fa.isBottomNode) {
-            int pos_node = binarySearchTreeNodeValue(val, fa);
-            readLeaf(leaf, fa.childrenPos[pos_node]);
-            int pos_leaf = binary_search_leaf_val(val, leaf);
+            int nodePos = binarySearchTreeNodeValue(val, fa);
+            readLeaf(leaf, fa.childrenPos[nodePos]);
+            int leafPos = binarySearchLeafValue(val, leaf);
             leaf.dataCount++, sizeData++;
-            for (int i = leaf.dataCount - 1; i > pos_leaf; i--) {
+            for (int i = leaf.dataCount - 1; i > leafPos; i--) {
                 leaf.value[i] = leaf.value[i - 1];
             }
-            leaf.value[pos_leaf] = val;
+            leaf.value[leafPos] = val;
             if (leaf.dataCount == L) {//裂块
                 Leaf new_leaf;
                 new_leaf.pos = get_rearLeaf();
@@ -438,23 +436,23 @@ private:
                     new_leaf.value[i] = leaf.value[i + mid];
                 }
                 leaf.dataCount = new_leaf.dataCount = mid;
-                write_leaf(leaf);
-                write_leaf(new_leaf);
-                for (int i = fa.dataCount; i > pos_node + 1; i--) {
+                writeLeaf(leaf);
+                writeLeaf(new_leaf);
+                for (int i = fa.dataCount; i > nodePos + 1; i--) {
                     fa.childrenPos[i] = fa.childrenPos[i - 1];
                 }
-                fa.childrenPos[pos_node + 1] = new_leaf.pos;
-                for (int i = fa.dataCount - 1; i > pos_node; i--) {
+                fa.childrenPos[nodePos + 1] = new_leaf.pos;
+                for (int i = fa.dataCount - 1; i > nodePos; i--) {
                     fa.septal[i] = fa.septal[i - 1];
                 }
-                fa.septal[pos_node] = leaf.value[mid - 1];
+                fa.septal[nodePos] = leaf.value[mid - 1];
                 fa.dataCount++;
                 if (fa.dataCount == M) {  // 需要继续分裂
                     return true;
-                } else writeNode(fa);
+                } else writeTreeNode(fa);
                 return false;
             }
-            write_leaf(leaf);
+            writeLeaf(leaf);
             return false;
         }
         TreeNode son;
@@ -471,8 +469,8 @@ private:
                 newNode.septal[i] = son.septal[mid + i];
             }
             newNode.dataCount = son.dataCount = mid;
-            writeNode(son);
-            writeNode(newNode);
+            writeTreeNode(son);
+            writeTreeNode(newNode);
             for (int i = fa.dataCount; i > now + 1; i--) {
                 fa.childrenPos[i] = fa.childrenPos[i - 1];
             }
@@ -484,12 +482,12 @@ private:
             fa.dataCount++;
             if (fa.dataCount == M) {  // 需要继续分裂
                 return true;
-            } else writeNode(fa);
+            } else writeTreeNode(fa);
             return false;
         } else return false;
     }
 
-    void writeNode(const TreeNode &node) {
+    void writeTreeNode(const TreeNode &node) {
         std::pair<bool, TreeNode> buffer = treeNodeBuffer.insert(node);
         if (buffer.first) {
             treeNodeFile.seekg(buffer.second.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
@@ -497,7 +495,7 @@ private:
         }
     }
 
-    void write_leaf(const Leaf &lef) {
+    void writeLeaf(const Leaf &lef) {
         std::pair<bool, Leaf> buffer = leafBuffer.insert(lef);
         if (buffer.first) {
             leafFile.seekg(buffer.second.pos * sizeof(Leaf) + headerLengthOfLeafFile);
@@ -512,7 +510,7 @@ private:
             treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
             treeNodeFile.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
         }
-        writeNode(node);
+        writeTreeNode(node);
     }
 
     void readLeaf(Leaf &lef, int pos) {
@@ -522,10 +520,10 @@ private:
             leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
             leafFile.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
         }
-        write_leaf(lef);
+        writeLeaf(lef);
     }
 
-    int binary_search_leaf_val(const std::pair<Key, Value> &val, const Leaf &lef) {
+    int binarySearchLeafValue(const std::pair<Key, Value> &val, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
             int mid = (l + r + 1) / 2;
@@ -575,7 +573,7 @@ private:
         Leaf ini_leaf;
         ini_leaf.nxt = ini_leaf.dataCount = 0;
         ini_leaf.pos = 1;
-        write_leaf(ini_leaf);
+        writeLeaf(ini_leaf);
         treeNodeFile.close();
         leafFile.close();
         treeNodeFile.open(treeNodeFileName);

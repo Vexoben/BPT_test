@@ -1,7 +1,8 @@
 #include <iostream>
 #include <cstdio>
-#include "vector.hpp"
-#include "bptree_roll.hpp"
+#include <cstring>
+#include <vector>
+#include "bptree.hpp"
 #include "database.hpp"
 
 
@@ -60,7 +61,7 @@ int main() {
             bpTree.insert(val);
         } else if (cmd[0] == 'f') {
             scanf("%s", val.first.index);
-            sjtu::vector<int> ans = bpTree.Find(val.first);
+            std::vector<int> ans = bpTree.find(val.first);
             if (!ans.empty()) {
                 for (int i = 0; i < ans.size() - 1; i++)printf("%d ", ans[i]);
                 printf("%d\n",ans[ans.size()-1]);
