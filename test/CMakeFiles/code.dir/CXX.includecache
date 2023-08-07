@@ -16,12 +16,6 @@ bufferList.hpp
 
 /mnt/f/github/BPT_test/bufferList.hpp
 
-/mnt/f/github/BPT_test/database.hpp
-iostream
--
-fstream
--
-
 /mnt/f/github/BPT_test/main.cpp
 iostream
 -
@@ -33,6 +27,4 @@ vector
 -
 bptree.hpp
 /mnt/f/github/BPT_test/bptree.hpp
-database.hpp
-/mnt/f/github/BPT_test/database.hpp
 

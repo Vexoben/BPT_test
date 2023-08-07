@@ -3,8 +3,6 @@
 #include <cstring>
 #include <vector>
 #include "bptree.hpp"
-#include "database.hpp"
-
 
 struct String {
     char index[65];
@@ -48,31 +46,29 @@ struct String {
 };
 
 int main() {
-    BPTree<String, int, 100, 100> bpTree("test");
-    std::pair<String, int> val;
-    int cnt;
-    char cmd[10];
+    BPTree<std::string, int, 100, 100> bpTree("test");
+    std::pair<std::string, int> val;
+    int operationCount;
+    std::string cmd;
     int data;
-    scanf("%d", &cnt);
-    for (int i = 1; i <= cnt; i++) {
-        scanf("%s", cmd);
-        if (cmd[0] == 'i') {
-            scanf("%s%d", val.first.index, &val.second);
+    std::cin >> operationCount;
+    for (int i = 1; i <= operationCount; i++) {
+        std::cin >> cmd;
+        if (cmd[0] == 'i') {  // insert
+            std::cin >> val.first >> val.second;
             bpTree.insert(val);
-        } else if (cmd[0] == 'f') {
-            scanf("%s", val.first.index);
+        } else if (cmd[0] == 'f') {  // find
+            std::cin >> val.first;
             std::vector<int> ans = bpTree.find(val.first);
             if (!ans.empty()) {
                 for (int i = 0; i < ans.size() - 1; i++)printf("%d ", ans[i]);
                 printf("%d\n",ans[ans.size()-1]);
             } else puts("null");
 
-        } else if (cmd[0] == 'd') {
-            scanf("%s%d", val.first.index, &val.second);
+        } else if (cmd[0] == 'd') {  // delete
+            std::cin >> val.first >> val.second;
             bpTree.remove(val);
         }
     }
-    //  remove("test_file_tree");
-    // remove("test_file_leaf");
     return 0;
 }
