@@ -41,7 +41,7 @@ private:
     bufferList<Leaf> leafBuffer;
     // 树的根节点
     TreeNode root;
-    Leaf leaf;
+
 public:
     // 构造函数；从文件中读取必要信息，在内存中记录树的根节点，元素个数等关键信息
     explicit BPTree(const std::string &name) {
@@ -161,6 +161,7 @@ public:
     std::vector<Value> find(const Key &key) {
         std::vector<Value> ans;
         TreeNode p = root;
+        Leaf leaf;
         while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
             readTreeNode(p, p.childrenPos[binarySearchTreeNode(key, p)]); 
         }
@@ -210,6 +211,7 @@ public:
     std::vector<std::pair<Key,Value>> roll(const Key &key) {
         std::vector<std::pair<Key,Value>> ans;
         TreeNode p = root;
+        Leaf leaf;
         while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
             readTreeNode(p, p.childrenPos[binarySearchTreeNode(key, p)]);
         }
@@ -230,6 +232,7 @@ public:
 private:
     bool removeDfs(const std::pair<Key, Value> &val, TreeNode &fa) {
         if (fa.isBottomNode) {  // 若已经找到叶子
+            Leaf leaf;
             int nodePos = binarySearchTreeNodeValue(val, fa);  // 找到叶节点的位置
             readLeaf(leaf, fa.childrenPos[nodePos]);  // 读入叶节点
             int leafPos = binarySearchLeafValue(val, leaf);  // 找到数据在叶节点中的位置
@@ -418,6 +421,7 @@ private:
 
     bool insertDfs(const std::pair<Key, Value> &val, TreeNode &fa) {
         if (fa.isBottomNode) {
+            Leaf leaf;
             int nodePos = binarySearchTreeNodeValue(val, fa);
             readLeaf(leaf, fa.childrenPos[nodePos]);
             int leafPos = binarySearchLeafValue(val, leaf);
