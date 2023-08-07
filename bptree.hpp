@@ -133,10 +133,10 @@ public:
         if (insertDfs(val, root)) {  // 分裂根节点
             TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
-            newNode.pos = getRearNode();
+            newNode.pos = getNewTreeNodePos();
             newNode.isBottomNode = root.isBottomNode;
             newNode.dataCount = M / 2;
-            int mid = M / 2;  // 对半分
+            int mid = M / 2;
             for (int i = 0; i < mid; i++) {
                 newNode.childrenPos[i] = root.childrenPos[mid + i];
             }
@@ -147,7 +147,7 @@ public:
             writeTreeNode(root);
             writeTreeNode(newNode);
             newRoot.dataCount = 2;
-            newRoot.pos = getRearNode();
+            newRoot.pos = getNewTreeNodePos();
             newRoot.isBottomNode = false;
             newRoot.childrenPos[0] = root.pos;
             newRoot.childrenPos[1] = newNode.pos;
@@ -170,7 +170,7 @@ public:
         while (now < leaf.dataCount && leaf.value[now].first == key) {  // 读取所有关键字等于key的记录
             ans.push_back(leaf.value[now++].second);
         }
-        while (leaf.nxt && now == leaf.dataCount) {  // 读到文件尾 寻找下一块
+        while (leaf.nxt && now == leaf.dataCount) {  // 如果读完了这个叶子节点的信息，则寻找下一块
             readLeaf(leaf, leaf.nxt);
             now = 0;
             while (now < leaf.dataCount && leaf.value[now].first == key) {
@@ -432,7 +432,7 @@ private:
             leaf.value[leafPos] = val;
             if (leaf.dataCount == L) {//裂块
                 Leaf new_leaf;
-                new_leaf.pos = get_rearLeaf();
+                new_leaf.pos = getNewLeafPos();
                 new_leaf.nxt = leaf.nxt;
                 leaf.nxt = new_leaf.pos;
                 int mid = L / 2;
@@ -464,7 +464,7 @@ private:
         readTreeNode(son, fa.childrenPos[now]);
         if (insertDfs(val, son)) {
             TreeNode newNode;
-            newNode.pos = getRearNode(), newNode.isBottomNode = son.isBottomNode;
+            newNode.pos = getNewTreeNodePos(), newNode.isBottomNode = son.isBottomNode;
             int mid = M / 2;
             for (int i = 0; i < mid; i++) {
                 newNode.childrenPos[i] = son.childrenPos[mid + i];
@@ -507,26 +507,29 @@ private:
         }
     }
 
+    // 读取树节点
     void readTreeNode(TreeNode &node, int pos) {
         std::pair<bool, TreeNode> buffer = treeNodeBuffer.find(pos);
         if (buffer.first) node = buffer.second;
         else {
             treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
             treeNodeFile.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
+            writeTreeNode(node);
         }
-        writeTreeNode(node);
     }
 
+    // 读取叶子节点
     void readLeaf(Leaf &lef, int pos) {
         std::pair<bool, Leaf> buffer = leafBuffer.find(pos);
         if (buffer.first) lef = buffer.second;
         else {
             leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
             leafFile.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
+            writeLeaf(lef);
         }
-        writeLeaf(lef);
     }
 
+    // 在叶子节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
     int binarySearchLeafValue(const std::pair<Key, Value> &val, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
@@ -537,6 +540,7 @@ private:
         return l + 1;
     }
 
+    // 在树节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
     int binarySearchTreeNodeValue(const std::pair<Key, Value> &val, const TreeNode &node) {
         int l = -1, r = node.dataCount - 2;
         while (l < r) {
@@ -547,7 +551,7 @@ private:
         return l + 1;
     }
 
-    // 在叶子节点中二分查找
+    // 在叶子节点中二分查找，返回第一个关键字大于等于key的位置
     int binarySearchLeaf(const Key &key, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
@@ -558,6 +562,7 @@ private:
         return l + 1;
     }
 
+    // 在树节点中二分查找，返回第一个关键字大于等于key的位置
     int binarySearchTreeNode(const Key &key, const TreeNode &node) {
         int l = -1, r = node.dataCount - 2;
         while (l < r) {
@@ -568,33 +573,36 @@ private:
         return l + 1;
     }
 
+    // 对文件做一些初始化操作
     void initialize() {
         treeNodeFile.open(treeNodeFileName, std::ios::out);
         leafFile.open(leafFileName, std::ios::out);
         root.isBottomNode = root.pos = root.childrenPos[0] = 1, sizeData = 0;
         root.dataCount = 1;
-        rearLeaf = rearTreeNode = 1;//1 base
-        Leaf ini_leaf;
-        ini_leaf.nxt = ini_leaf.dataCount = 0;
-        ini_leaf.pos = 1;
-        writeLeaf(ini_leaf);
+        rearLeaf = rearTreeNode = 1;
+        Leaf initLeaf;
+        initLeaf.nxt = initLeaf.dataCount = 0;
+        initLeaf.pos = 1;
+        writeLeaf(initLeaf);
         treeNodeFile.close();
         leafFile.close();
         treeNodeFile.open(treeNodeFileName);
         leafFile.open(leafFileName);
     }
 
-    int getRearNode() {
-        if (emptyTreeNode.empty()) {
+    // 获取一个新的树节点的位置
+    int getNewTreeNodePos() {
+        if (emptyTreeNode.empty()) {  // 如果没有先前删除的节点，就直接在后面加
             return ++rearTreeNode;
-        } else {
+        } else {  // 否则就从删除的节点中取出一个
             int newIndex = emptyTreeNode.back();
             emptyTreeNode.pop_back();
             return newIndex;
         }
     }
 
-    int get_rearLeaf() {
+    // 获取一个新的叶子节点的位置
+    int getNewLeafPos() {
         if (emptyLeaf.empty()) {
             return ++rearLeaf;
         } else {
