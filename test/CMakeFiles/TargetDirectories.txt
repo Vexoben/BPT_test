@@ -1,3 +1,0 @@
-/mnt/f/github/BPT_test/test/CMakeFiles/rebuild_cache.dir
-/mnt/f/github/BPT_test/test/CMakeFiles/edit_cache.dir
-/mnt/f/github/BPT_test/test/CMakeFiles/code.dir
