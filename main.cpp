@@ -50,10 +50,10 @@ int main() {
     BPTree<String, int> bpTree("test");
     std::pair<String, int> val;
     int cnt;
-    char cmd[10];
+    std::string cmd;
     scanf("%d", &cnt);
     for (int i = 1; i <= cnt; i++) {
-        scanf("%s", cmd);
+        std::cin >> cmd;
         if (cmd[0] == 'i') {
             scanf("%s%d", val.first.index, &val.second);
             bpTree.insert(val);
