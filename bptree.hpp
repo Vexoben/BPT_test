@@ -8,8 +8,8 @@
 
 namespace trainsys {
 
-template<class Key, class Value, int M = 100, int L = 100>
-class BPTree {
+template<class KeyType, class ValueType, int M = 100, int L = 100>
+class BPTree : public StorageSearchTable<KeyType, ValueType> {
 private:
     std::fstream treeNodeFile, leafFile;  // 存放树节点的文件和叶子节点的文件
     int rearTreeNode, rearLeaf;           // 最后一个树节点的位置和最后一个叶子节点的位置
@@ -27,14 +27,14 @@ private:
         bool isBottomNode;  // 记录是否是叶子节点上面一层的节点
         int pos, dataCount; // pos是节点的位置，dataCount是节点中子节点的个数
         int childrenPos[M]; // 子节点的位置，0 base
-        std::pair<Key, Value> septal[M - 1]; // 各个子树之间的分隔关键字，0 base
+        std::pair<KeyType, ValueType> septal[M - 1]; // 各个子树之间的分隔关键字，0 base
     };
 
     // B+树的叶子节点
     struct Leaf {
         int nxt, pos;  // nxt是下一个叶子节点的位置，pos是当前叶子节点的位置
         int dataCount; // dataCount是当前叶子节点中数据的个数
-        std::pair<Key, Value> value[L];  // 存放数据，0 base
+        std::pair<KeyType, ValueType> value[L];  // 存放数据，0 base
     };
 
     // 存放树节点的文件的名字和叶子节点的文件的名字
@@ -132,7 +132,7 @@ public:
     int size() { return sizeData; }
 
     // 插入记录
-    void insert(const std::pair<Key, Value> &val) {
+    void insert(const std::pair<KeyType, ValueType> &val) {
         if (insertDfs(val, root)) {  // 分裂根节点
             TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
@@ -161,8 +161,8 @@ public:
     }
 
     // 查询记录；返回一个vector，因为可能一个key对应多个value
-    std::vector<Value> find(const Key &key) {
-        std::vector<Value> ans;
+    std::vector<ValueType> find(const KeyType &key) {
+        std::vector<ValueType> ans;
         TreeNode p = root;
         Leaf leaf;
         while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
@@ -183,7 +183,7 @@ public:
         return ans;
     }
 
-    void remove(const std::pair<Key, Value> &val) {
+    void remove(const std::pair<KeyType, ValueType> &val) {
         if (removeDfs(val, root)) {
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
                 TreeNode son;
@@ -196,7 +196,7 @@ public:
     }
 
     // 修改记录，等价于先删除再插入
-    void modify(const std::pair<Key, Value> &val, Value new_val) {
+    void modify(const std::pair<KeyType, ValueType> &val, ValueType new_val) {
         remove(val);
         insert(std::make_pair(val.first, new_val));
     }
@@ -214,7 +214,7 @@ public:
 
 private:
     // 递归插入记录，返回该节点插入记录后是否满足B+树对子节点数的限制；如不满足，需要递归调整
-    bool insertDfs(const std::pair<Key, Value> &val, TreeNode &currentNode) {
+    bool insertDfs(const std::pair<KeyType, ValueType> &val, TreeNode &currentNode) {
         if (currentNode.isBottomNode) {  // 如果是叶子节点，直接插入
             Leaf leaf;
             // 查找插入位置
@@ -292,7 +292,7 @@ private:
     }
 
     // 递归删除记录，返回该节点删除记录后是否满足B+树对子节点数的限制；如不满足，需要递归调整
-    bool removeDfs(const std::pair<Key, Value> &val, TreeNode &currentNode) {
+    bool removeDfs(const std::pair<KeyType, ValueType> &val, TreeNode &currentNode) {
         if (currentNode.isBottomNode) {  // 如果已经到了叶子层
             Leaf leaf;
             int nodePos = binarySearchTreeNodeValue(val, currentNode);  // 找到叶节点的位置
@@ -527,7 +527,7 @@ private:
     }
 
     // 在叶子节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
-    int binarySearchLeafValue(const std::pair<Key, Value> &val, const Leaf &lef) {
+    int binarySearchLeafValue(const std::pair<KeyType, ValueType> &val, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
             int mid = (l + r + 1) / 2;
@@ -538,7 +538,7 @@ private:
     }
 
     // 在树节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
-    int binarySearchTreeNodeValue(const std::pair<Key, Value> &val, const TreeNode &node) {
+    int binarySearchTreeNodeValue(const std::pair<KeyType, ValueType> &val, const TreeNode &node) {
         int l = -1, r = node.dataCount - 2;
         while (l < r) {
             int mid = (l + r + 1) / 2;
@@ -549,7 +549,7 @@ private:
     }
 
     // 在叶子节点中二分查找，返回第一个关键字大于等于key的位置
-    int binarySearchLeaf(const Key &key, const Leaf &lef) {
+    int binarySearchLeaf(const KeyType &key, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
             int mid = (l + r + 1) / 2;
@@ -560,7 +560,7 @@ private:
     }
 
     // 在树节点中二分查找，返回第一个关键字大于等于key的位置
-    int binarySearchTreeNode(const Key &key, const TreeNode &node) {
+    int binarySearchTreeNode(const KeyType &key, const TreeNode &node) {
         int l = -1, r = node.dataCount - 2;
         while (l < r) {
             int mid = (l + r + 1) / 2;
