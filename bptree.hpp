@@ -8,6 +8,8 @@
 
 namespace trainsys {
 
+template <class FirstType, class SecondType> struct Pair;
+
 template<class KeyType, class ValueType, int M = 100, int L = 100>
 class BPTree : public StorageSearchTable<KeyType, ValueType> {
 private:
@@ -27,14 +29,14 @@ private:
         bool isBottomNode;  // 记录是否是叶子节点上面一层的节点
         int pos, dataCount; // pos是节点的位置，dataCount是节点中子节点的个数
         int childrenPos[M]; // 子节点的位置，0 base
-        std::pair<KeyType, ValueType> septal[M - 1]; // 各个子树之间的分隔关键字，0 base
+        Pair<KeyType, ValueType> septal[M - 1]; // 各个子树之间的分隔关键字，0 base
     };
 
     // B+树的叶子节点
     struct Leaf {
         int nxt, pos;  // nxt是下一个叶子节点的位置，pos是当前叶子节点的位置
         int dataCount; // dataCount是当前叶子节点中数据的个数
-        std::pair<KeyType, ValueType> value[L];  // 存放数据，0 base
+        Pair<KeyType, ValueType> value[L];  // 存放数据，0 base
     };
 
     // 存放树节点的文件的名字和叶子节点的文件的名字
@@ -134,7 +136,7 @@ public:
     int size() { return sizeData; }
 
     // 插入记录
-    void insert(const std::pair<KeyType, ValueType> &val) {
+    void insert(const Pair<KeyType, ValueType> &val) {
         if (insertDfs(val, root)) {  // 分裂根节点
             TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
@@ -185,7 +187,7 @@ public:
         return ans;
     }
 
-    void remove(const std::pair<KeyType, ValueType> &val) {
+    void remove(const Pair<KeyType, ValueType> &val) {
         if (removeDfs(val, root)) {
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
                 TreeNode son;
@@ -198,7 +200,7 @@ public:
     }
 
     // 修改记录，等价于先删除再插入
-    void modify(const std::pair<KeyType, ValueType> &val, ValueType new_val) {
+    void modify(const Pair<KeyType, ValueType> &val, ValueType new_val) {
         remove(val);
         insert(std::make_pair(val.first, new_val));
     }
@@ -216,7 +218,7 @@ public:
 
 private:
     // 递归插入记录，返回该节点插入记录后是否满足B+树对子节点数的限制；如不满足，需要递归调整
-    bool insertDfs(const std::pair<KeyType, ValueType> &val, TreeNode &currentNode) {
+    bool insertDfs(const Pair<KeyType, ValueType> &val, TreeNode &currentNode) {
         if (currentNode.isBottomNode) {  // 如果是叶子节点，直接插入
             Leaf leaf;
             // 查找插入位置
@@ -294,13 +296,13 @@ private:
     }
 
     // 递归删除记录，返回该节点删除记录后是否满足B+树对子节点数的限制；如不满足，需要递归调整
-    bool removeDfs(const std::pair<KeyType, ValueType> &val, TreeNode &currentNode) {
+    bool removeDfs(const Pair<KeyType, ValueType> &val, TreeNode &currentNode) {
         if (currentNode.isBottomNode) {  // 如果已经到了叶子层
             Leaf leaf;
             int nodePos = binarySearchTreeNodeValue(val, currentNode);  // 找到叶节点的位置
             readLeaf(leaf, currentNode.childrenPos[nodePos]);  // 读入叶节点
             int leafPos = binarySearchLeafValue(val, leaf);  // 找到数据在叶节点中的位置
-            if (leafPos == leaf.dataCount || leaf.value[leafPos] != val) {
+            if (leafPos == leaf.dataCount || !checkPairEqual(leaf.value[leafPos], val)) {
                 return false;  // 如果找不到键值对val，删除失败，后续不需要调整
             }
             leaf.dataCount--, sizeData--;
@@ -490,7 +492,7 @@ private:
     // 向缓存中写入树节点
     void writeTreeNode(const TreeNode &node) {
         // 将节点先加入缓存
-        std::pair<bool, TreeNode> buffer = treeNodeBuffer.insert(node);
+        Pair<bool, TreeNode> buffer = treeNodeBuffer.insert(node);
         if (buffer.first) {  // 如果缓存满了，可能会弹出一个节点，需要将其写入文件
             treeNodeFile.seekg(buffer.second.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
             treeNodeFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(TreeNode));
@@ -498,7 +500,7 @@ private:
     }
 
     void writeLeaf(const Leaf &lef) {
-        std::pair<bool, Leaf> buffer = leafBuffer.insert(lef);
+        Pair<bool, Leaf> buffer = leafBuffer.insert(lef);
         if (buffer.first) {
             leafFile.seekg(buffer.second.pos * sizeof(Leaf) + headerLengthOfLeafFile);
             leafFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(Leaf));
@@ -508,7 +510,7 @@ private:
     // 读取树节点
     void readTreeNode(TreeNode &node, int pos) {
         // 先尝试从缓存中读取
-        std::pair<bool, TreeNode> buffer = treeNodeBuffer.find(pos);
+        Pair<bool, TreeNode> buffer = treeNodeBuffer.find(pos);
         if (buffer.first) node = buffer.second;
         else {  // 如果缓存中没有，从文件中读取，并将其加入缓存
             treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
@@ -519,7 +521,7 @@ private:
 
     // 读取叶子节点
     void readLeaf(Leaf &lef, int pos) {
-        std::pair<bool, Leaf> buffer = leafBuffer.find(pos);
+        Pair<bool, Leaf> buffer = leafBuffer.find(pos);
         if (buffer.first) lef = buffer.second;
         else {
             leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
@@ -529,22 +531,22 @@ private:
     }
 
     // 在叶子节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
-    int binarySearchLeafValue(const std::pair<KeyType, ValueType> &val, const Leaf &lef) {
+    int binarySearchLeafValue(const Pair<KeyType, ValueType> &val, const Leaf &lef) {
         int l = -1, r = lef.dataCount - 1;
         while (l < r) {
             int mid = (l + r + 1) / 2;
-            if (lef.value[mid] >= val) r = mid - 1;
+            if (!checkPairLess(lef.value[mid], val)) r = mid - 1;
             else l = mid;
         }
         return l + 1;
     }
 
     // 在树节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
-    int binarySearchTreeNodeValue(const std::pair<KeyType, ValueType> &val, const TreeNode &node) {
+    int binarySearchTreeNodeValue(const Pair<KeyType, ValueType> &val, const TreeNode &node) {
         int l = -1, r = node.dataCount - 2;
         while (l < r) {
             int mid = (l + r + 1) / 2;
-            if (node.septal[mid] >= val) r = mid - 1;
+            if (!checkPairLess(node.septal[mid], val)) r = mid - 1;
             else l = mid;
         }
         return l + 1;

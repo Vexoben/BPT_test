@@ -5,18 +5,14 @@
 
 namespace trainsys {
 
-template <class KeyType, class ValueType>
-struct DateType {
-    KeyType key;
-    ValueType value;
-};
+template <class FirstType, class SecondType> struct Pair;
 
 template <class KeyType, class ValueType>
 class StorageSearchTable {
 public:
     virtual seqList<ValueType> find(const KeyType &key) = 0;
-    virtual void insert(const std::pair<KeyType, ValueType> &val) = 0;
-    virtual void remove(const std::pair<KeyType, ValueType> &val) = 0;
+    virtual void insert(const Pair<KeyType, ValueType> &val) = 0;
+    virtual void remove(const Pair<KeyType, ValueType> &val) = 0;
     virtual ~StorageSearchTable() {};
 };
 

@@ -1,6 +1,11 @@
 #ifndef BPTREE_HPP_BUFFERLIST_HPP
 #define BPTREE_HPP_BUFFERLIST_HPP
 
+#include "Pair.h"
+
+namespace trainsys {
+
+template <class FirstType, class SecondType> struct Pair;
 
 template<class T, int L = 50>
 
@@ -33,14 +38,14 @@ public:
     }
 
     //查找是否存在相关元素
-    std::pair<bool, T> find(int pos) {
+    Pair<bool, T> find(int pos) {
         linkNode *p = head->nxt;
         while (p != rear) {
-            if (pos == p->val.pos)return std::make_pair(true, p->val);
+            if (pos == p->val.pos) return Pair<bool, T>(true, p->val);
             p = p->nxt;
         }
         T tmp;
-        return std::make_pair(false, tmp);
+        return Pair<bool, T>(false, tmp);
     }
 
     void remove(int pos) {
@@ -57,7 +62,7 @@ public:
     }
 
     //插入元素 并判断有没有需要写入文件的节点弹出
-    std::pair<bool, T> insert(const T &val) {
+    Pair<bool, T> insert(const T &val) {
         remove(val.pos);
         size++;
         head->nxt = new linkNode(val, head->nxt, head);
@@ -67,11 +72,11 @@ public:
             linkNode *del = rear->fro;
             del->fro->nxt = rear;
             rear->fro = del->fro;
-            std::pair<bool, T> tmp= std::make_pair(true,del->val);
+            Pair<bool, T> tmp(true,del->val);
             delete del;
             return tmp;
         }
-        return std::make_pair(false, val);
+        return Pair<bool, T>(false, val);
     }
 
 
@@ -102,7 +107,8 @@ public:
         head->nxt = rear;
         rear->fro = head;
     }
-
 };
+
+}
 
 #endif //BPTREE_HPP_BUFFERLIST_HPP

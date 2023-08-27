@@ -3,6 +3,7 @@
 #include <cstring>
 #include "bptree.hpp"
 #include "List.h"
+#include "Pair.h"
 
 // 需要使用一个定长的字符串作为索引，而不是使用std::string
 struct String {
@@ -48,7 +49,7 @@ struct String {
 
 int main() {
     trainsys::BPTree<String, int> bpTree("test");
-    std::pair<String, int> val;
+    trainsys::Pair<String, int> val;
     int cnt;
     char cmd[10];
     scanf("%d", &cnt);
