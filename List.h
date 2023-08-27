@@ -31,6 +31,7 @@ public:
     ~seqList() { delete[] data; }
     void clear() { currentLength = 0; }
     int length() const { return currentLength; }
+    bool empty() const { return currentLength == 0; }
     void insert(int i, const elemType &x);
     void pushBack(const elemType &x);
     void popBack();

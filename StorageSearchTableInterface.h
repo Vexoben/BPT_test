@@ -14,7 +14,7 @@ struct DateType {
 template <class KeyType, class ValueType>
 class StorageSearchTable {
 public:
-    virtual std::vector<ValueType> find(const KeyType &key) = 0;
+    virtual seqList<ValueType> find(const KeyType &key) = 0;
     virtual void insert(const std::pair<KeyType, ValueType> &val) = 0;
     virtual void remove(const std::pair<KeyType, ValueType> &val) = 0;
     virtual ~StorageSearchTable() {};

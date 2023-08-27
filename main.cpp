@@ -59,10 +59,10 @@ int main() {
             bpTree.insert(val);
         } else if (cmd[0] == 'f') {
             scanf("%s", val.first.index);
-            std::vector<int> ans = bpTree.find(val.first);
+            trainsys::seqList<int> ans = bpTree.find(val.first);
             if (!ans.empty()) {
-                for (int i = 0; i < ans.size() - 1; i++)printf("%d ", ans[i]);
-                printf("%d\n", ans[ans.size() - 1]);
+                for (int i = 0; i < ans.length() - 1; i++)printf("%d ", ans.visit(i));
+                printf("%d\n", ans.back());
             } else puts("null");
         } else if (cmd[0] == 'd') {
             scanf("%s%d", val.first.index, &val.second);

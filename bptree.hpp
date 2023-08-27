@@ -19,8 +19,8 @@ private:
     // 存放叶子节点的文件的头部长度（前面预留两个int的空间用来存储叶子节点数量和最后一个叶子节点位置）
     const int headerLengthOfLeafFile = 2 * sizeof(int);   
     // 被删除的树节点和叶子节点的位置，在插入的时候优先使用这些位置 
-    std::vector<int> emptyTreeNode;
-    std::vector<int> emptyLeaf;
+    seqList<int> emptyTreeNode;
+    seqList<int> emptyLeaf;
 
     // B+树的节点
     struct TreeNode {
@@ -71,7 +71,7 @@ public:
             for (int i = 0; i < treeNodeEmptySize; i++) {
                 int data;
                 treeNodeFile.read(reinterpret_cast<char *>(&data), sizeof(int));
-                emptyTreeNode.push_back(data);
+                emptyTreeNode.pushBack(data);
             }
             // 读取叶子节点文件的头部，得到最后一个叶子节点的位置
             leafFile.read(reinterpret_cast<char *>(&rearLeaf), sizeof(int));
@@ -84,7 +84,7 @@ public:
             for (int i = 0; i < leafEmptySize; i++) {
                 int data;
                 leafFile.read(reinterpret_cast<char *>(&data), sizeof(int));
-                emptyLeaf.push_back(data);
+                emptyLeaf.pushBack(data);
             }
         }
     }
@@ -114,15 +114,17 @@ public:
         }
         // 将被删除的树节点和叶子节点的位置写入文件
         treeNodeFile.seekg(headerLengthOfTreeNodeFile + (rearTreeNode + 1) * sizeof(TreeNode));
-        int emptyTreeNodeCount = emptyTreeNode.size(), emptyLeafCount = emptyLeaf.size();
+        int emptyTreeNodeCount = emptyTreeNode.length(), emptyLeafCount = emptyLeaf.length();
         treeNodeFile.write(reinterpret_cast<char *>(&emptyTreeNodeCount), sizeof(int));
-        for (int i = 0; i < emptyTreeNode.size(); i++) {
-            treeNodeFile.write(reinterpret_cast<char *>(&emptyTreeNode[i]), sizeof(int));
+        for (int i = 0; i < emptyTreeNode.length(); i++) {
+            int tmp = emptyTreeNode.visit(i);
+            treeNodeFile.write(reinterpret_cast<char *>(&tmp), sizeof(int));
         }
         leafFile.seekg(headerLengthOfLeafFile + (rearLeaf + 1) * sizeof(Leaf));
         leafFile.write(reinterpret_cast<char *>(&emptyLeafCount), sizeof(int));
-        for (int i = 0; i < emptyLeaf.size(); i++) {
-            leafFile.write(reinterpret_cast<char *>(&emptyLeaf[i]), sizeof(int));
+        for (int i = 0; i < emptyLeaf.length(); i++) {
+            int tmp = emptyLeaf.visit(i);
+            leafFile.write(reinterpret_cast<char *>(&tmp), sizeof(int));
         }
         // 关闭文件
         leafFile.close();
@@ -161,8 +163,8 @@ public:
     }
 
     // 查询记录；返回一个vector，因为可能一个key对应多个value
-    std::vector<ValueType> find(const KeyType &key) {
-        std::vector<ValueType> ans;
+    seqList<ValueType> find(const KeyType &key) {
+        seqList<ValueType> ans;
         TreeNode p = root;
         Leaf leaf;
         while (!p.isBottomNode) {  // childrenPos[now]中元素小于等于Key[now] 循环找到叶节点
@@ -171,13 +173,13 @@ public:
         readLeaf(leaf, p.childrenPos[binarySearchTreeNode(key, p)]);  // 找到叶子节点
         int now = binarySearchLeaf(key, leaf);  // 在叶子节点中二分查找，找到第一个大于等于key的位置
         while (now < leaf.dataCount && leaf.value[now].first == key) {  // 读取所有关键字等于key的记录
-            ans.push_back(leaf.value[now++].second);
+            ans.pushBack(leaf.value[now++].second);
         }
         while (leaf.nxt && now == leaf.dataCount) {  // 如果读完了这个叶子节点的信息，则寻找下一块
             readLeaf(leaf, leaf.nxt);
             now = 0;
             while (now < leaf.dataCount && leaf.value[now].first == key) {
-                ans.push_back(leaf.value[now++].second);
+                ans.pushBack(leaf.value[now++].second);
             }
         }
         return ans;
@@ -189,7 +191,7 @@ public:
                 TreeNode son;
                 readTreeNode(son, root.childrenPos[0]);
                 treeNodeBuffer.remove(root.pos);
-                emptyTreeNode.push_back(root.pos);
+                emptyTreeNode.pushBack(root.pos);
                 root = son;
             }
         }
@@ -346,7 +348,7 @@ private:
                     pre.nxt = leaf.nxt;
                     writeLeaf(pre);
                     leafBuffer.remove(leaf.pos);
-                    emptyLeaf.push_back(leaf.pos);
+                    emptyLeaf.pushBack(leaf.pos);
                     // 更新fa的关键字和数据
                     currentNode.dataCount--;
                     for (int i = nodePos; i < currentNode.dataCount; i++) {
@@ -369,7 +371,7 @@ private:
                     leaf.nxt = nxt.nxt;
                     writeLeaf(leaf);
                     leafBuffer.remove(nxt.pos);
-                    emptyLeaf.push_back(nxt.pos);
+                    emptyLeaf.pushBack(nxt.pos);
                     currentNode.dataCount--;
                     // 更新fa的关键字和数据
                     for (int i = nodePos + 1; i < currentNode.dataCount; i++) {
@@ -442,7 +444,7 @@ private:
                 pre.dataCount += son.dataCount;
                 writeTreeNode(pre);
                 treeNodeBuffer.remove(son.pos);
-                emptyTreeNode.push_back(son.pos);
+                emptyTreeNode.pushBack(son.pos);
                 currentNode.dataCount--;
                 for (int i = now; i < currentNode.dataCount; i++) {
                     currentNode.childrenPos[i] = currentNode.childrenPos[i + 1];
@@ -467,7 +469,7 @@ private:
                 son.dataCount += nxt.dataCount;
                 writeTreeNode(son);
                 treeNodeBuffer.remove(nxt.pos);
-                emptyTreeNode.push_back(nxt.pos);
+                emptyTreeNode.pushBack(nxt.pos);
                 currentNode.dataCount--;
                 for (int i = now + 1; i < currentNode.dataCount; i++) {
                     currentNode.childrenPos[i] = currentNode.childrenPos[i + 1];
@@ -593,7 +595,7 @@ private:
             return ++rearTreeNode;
         } else {  // 否则就从删除的节点中取出一个
             int newIndex = emptyTreeNode.back();
-            emptyTreeNode.pop_back();
+            emptyTreeNode.popBack();
             return newIndex;
         }
     }
@@ -604,7 +606,7 @@ private:
             return ++rearLeaf;
         } else {
             int newIndex = emptyLeaf.back();
-            emptyLeaf.pop_back();
+            emptyLeaf.popBack();
             return newIndex;
         }
     }
