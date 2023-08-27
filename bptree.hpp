@@ -4,6 +4,9 @@
 #include <vector>
 #include <fstream>
 #include "bufferList.hpp"
+#include "StorageSearchTableInterface.h"
+
+namespace trainsys {
 
 template<class Key, class Value, int M = 100, int L = 100>
 class BPTree {
@@ -606,5 +609,7 @@ private:
         }
     }
 };
+
+}
 
 #endif //BPTREE_HPP_BPTREE_HPP
