@@ -41,9 +41,6 @@ private:
 
     // 存放树节点的文件的名字和叶子节点的文件的名字
     std::string treeNodeFileName, leafFileName;
-    // 用来存放树节点和叶子节点的缓冲区
-    bufferList<TreeNode> treeNodeBuffer;
-    bufferList<Leaf> leafBuffer;
     // 树的根节点
     TreeNode root;
 
@@ -103,17 +100,6 @@ public:
         leafFile.write(reinterpret_cast<char *>(&rearLeaf), sizeof(int));
         // 将插入的记录的数量写入文件
         leafFile.write(reinterpret_cast<char *>(&sizeData), sizeof(int));
-        // 将缓存中的树节点和叶子节点写入文件
-        while (!treeNodeBuffer.empty()) {
-            TreeNode tmp = treeNodeBuffer.pop_back();
-            treeNodeFile.seekg(tmp.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
-            treeNodeFile.write(reinterpret_cast<char *>(&tmp), sizeof(TreeNode));
-        }
-        while (!leafBuffer.empty()) {
-            Leaf tmp = leafBuffer.pop_back();
-            leafFile.seekg(tmp.pos * sizeof(Leaf) + headerLengthOfLeafFile);
-            leafFile.write(reinterpret_cast<char *>(&tmp), sizeof(Leaf));
-        }
         // 将被删除的树节点和叶子节点的位置写入文件
         treeNodeFile.seekg(headerLengthOfTreeNodeFile + (rearTreeNode + 1) * sizeof(TreeNode));
         int emptyTreeNodeCount = emptyTreeNode.length(), emptyLeafCount = emptyLeaf.length();
@@ -192,7 +178,6 @@ public:
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
                 TreeNode son;
                 readTreeNode(son, root.childrenPos[0]);
-                treeNodeBuffer.remove(root.pos);
                 emptyTreeNode.pushBack(root.pos);
                 root = son;
             }
@@ -209,8 +194,6 @@ public:
     void clear() {
         treeNodeFile.close();
         leafFile.close();
-        treeNodeBuffer.clear();
-        leafBuffer.clear();
         emptyTreeNode.clear();
         emptyLeaf.clear();
         initialize();
@@ -349,7 +332,6 @@ private:
                     pre.dataCount += leaf.dataCount;
                     pre.nxt = leaf.nxt;
                     writeLeaf(pre);
-                    leafBuffer.remove(leaf.pos);
                     emptyLeaf.pushBack(leaf.pos);
                     // 更新fa的关键字和数据
                     currentNode.dataCount--;
@@ -372,7 +354,6 @@ private:
                     leaf.dataCount += nxt.dataCount;
                     leaf.nxt = nxt.nxt;
                     writeLeaf(leaf);
-                    leafBuffer.remove(nxt.pos);
                     emptyLeaf.pushBack(nxt.pos);
                     currentNode.dataCount--;
                     // 更新fa的关键字和数据
@@ -445,7 +426,6 @@ private:
                 }
                 pre.dataCount += son.dataCount;
                 writeTreeNode(pre);
-                treeNodeBuffer.remove(son.pos);
                 emptyTreeNode.pushBack(son.pos);
                 currentNode.dataCount--;
                 for (int i = now; i < currentNode.dataCount; i++) {
@@ -470,7 +450,6 @@ private:
                 }
                 son.dataCount += nxt.dataCount;
                 writeTreeNode(son);
-                treeNodeBuffer.remove(nxt.pos);
                 emptyTreeNode.pushBack(nxt.pos);
                 currentNode.dataCount--;
                 for (int i = now + 1; i < currentNode.dataCount; i++) {
@@ -490,44 +469,26 @@ private:
     }
 
     // 向缓存中写入树节点
-    void writeTreeNode(const TreeNode &node) {
-        // 将节点先加入缓存
-        Pair<bool, TreeNode> buffer = treeNodeBuffer.insert(node);
-        if (buffer.first) {  // 如果缓存满了，可能会弹出一个节点，需要将其写入文件
-            treeNodeFile.seekg(buffer.second.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
-            treeNodeFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(TreeNode));
-        }
+    void writeTreeNode(TreeNode &node) {
+        treeNodeFile.seekg(node.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
+        treeNodeFile.write(reinterpret_cast<char *>(&node), sizeof(TreeNode));
     }
 
-    void writeLeaf(const Leaf &lef) {
-        Pair<bool, Leaf> buffer = leafBuffer.insert(lef);
-        if (buffer.first) {
-            leafFile.seekg(buffer.second.pos * sizeof(Leaf) + headerLengthOfLeafFile);
-            leafFile.write(reinterpret_cast<char *>(&buffer.second), sizeof(Leaf));
-        }
+    void writeLeaf(Leaf &leaf) {
+        leafFile.seekg(leaf.pos * sizeof(Leaf) + headerLengthOfLeafFile);
+        leafFile.write(reinterpret_cast<char *>(&leaf), sizeof(Leaf));
     }
 
     // 读取树节点
     void readTreeNode(TreeNode &node, int pos) {
-        // 先尝试从缓存中读取
-        Pair<bool, TreeNode> buffer = treeNodeBuffer.find(pos);
-        if (buffer.first) node = buffer.second;
-        else {  // 如果缓存中没有，从文件中读取，并将其加入缓存
-            treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
-            treeNodeFile.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
-            writeTreeNode(node);  // 向缓存中写入，从而将其加入缓存
-        }
+        treeNodeFile.seekg(pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
+        treeNodeFile.read(reinterpret_cast<char *>(&node), sizeof(TreeNode));
     }
 
     // 读取叶子节点
     void readLeaf(Leaf &lef, int pos) {
-        Pair<bool, Leaf> buffer = leafBuffer.find(pos);
-        if (buffer.first) lef = buffer.second;
-        else {
-            leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
-            leafFile.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
-            writeLeaf(lef);
-        }
+        leafFile.seekg(pos * sizeof(Leaf) + headerLengthOfLeafFile);
+        leafFile.read(reinterpret_cast<char *>(&lef), sizeof(Leaf));
     }
 
     // 在叶子节点中二分查找，返回第一个关键字大于等于key，且键值大于等于val的位置
