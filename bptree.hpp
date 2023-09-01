@@ -186,7 +186,7 @@ public:
     // 修改记录，等价于先删除再插入
     void modify(const Pair<KeyType, ValueType> &val, const ValueType &new_val) {
         remove(val);
-        insert(Pair(val.first, new_val));
+        insert(Pair<KeyType, ValueType>(val.first, new_val));
     }
 
     // 清空B+树
