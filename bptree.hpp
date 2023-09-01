@@ -121,8 +121,8 @@ public:
     int size() { return sizeData; }
 
     // 插入记录
-    void insert(const Pair<KeyType, ValueType> &val) {
-        if (insertDfs(val, root)) {  // 分裂根节点
+    void insert(const KeyType &key, const ValueType &value) {
+        if (insertDfs(Pair<KeyType, ValueType>(key, value), root)) {  // 分裂根节点
             TreeNode newRoot;  // 创建一个新的根节点
             TreeNode newNode;  // 新的兄弟节点
             newNode.pos = getNewTreeNodePos();
@@ -172,8 +172,8 @@ public:
         return ans;
     }
 
-    void remove(const Pair<KeyType, ValueType> &val) {
-        if (removeDfs(val, root)) {
+    void remove(const KeyType &key, const ValueType &value) {
+        if (removeDfs(Pair<KeyType, ValueType>(key, value), root)) {
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
                 TreeNode son;
                 readTreeNode(son, root.childrenPos[0]);
@@ -184,9 +184,9 @@ public:
     }
 
     // 修改记录，等价于先删除再插入
-    void modify(const Pair<KeyType, ValueType> &val, const ValueType &new_val) {
-        remove(val);
-        insert(Pair<KeyType, ValueType>(val.first, new_val));
+    void modify(const KeyType &key, const ValueType &oldValue, const ValueType &newValue) {
+        remove(Pair<KeyType, ValueType>(key, oldValue));
+        insert(Pair<KeyType, ValueType>(key, newValue));
     }
 
     // 清空B+树
@@ -467,12 +467,13 @@ private:
         return false;
     }
 
-    // 向缓存中写入树节点
+    // 将树节点写入文件
     void writeTreeNode(TreeNode &node) {
         treeNodeFile.seekg(node.pos * sizeof(TreeNode) + headerLengthOfTreeNodeFile);
         treeNodeFile.write(reinterpret_cast<char *>(&node), sizeof(TreeNode));
     }
 
+    // 将叶子节点写入文件
     void writeLeaf(Leaf &leaf) {
         leafFile.seekg(leaf.pos * sizeof(Leaf) + headerLengthOfLeafFile);
         leafFile.write(reinterpret_cast<char *>(&leaf), sizeof(Leaf));

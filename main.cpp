@@ -49,27 +49,30 @@ struct String {
 
 int main() {
     trainsys::BPTree<String, int> bpTree("test");
-    trainsys::Pair<String, int> val;
+    String key;
+    int value;
     int cnt;
     char cmd[10];
-    scanf("%d", &cnt);
+    std::cin >> cnt;
     for (int i = 1; i <= cnt; i++) {
-        scanf("%s", cmd);
+        std::cin >> cmd;
+        // scanf("%s", cmd);
         if (cmd[0] == 'i') {
-            scanf("%s%d", val.first.index, &val.second);
-            bpTree.insert(val);
+            std::cin >> key.index >> value;
+            bpTree.insert(key, value);
         } else if (cmd[0] == 'f') {
-            scanf("%s", val.first.index);
-            trainsys::seqList<int> ans = bpTree.find(val.first);
+            std::cin >> key.index;
+            trainsys::seqList<int> ans = bpTree.find(key);
             if (!ans.empty()) {
-                for (int i = 0; i < ans.length() - 1; i++)printf("%d ", ans.visit(i));
-                printf("%d\n", ans.back());
+                for (int i = 0; i < ans.length(); i++) {
+                    std::cout << ans.visit(i) << ' ';
+                }
+                std::cout << std::endl;
             } else puts("null");
         } else if (cmd[0] == 'd') {
-            scanf("%s%d", val.first.index, &val.second);
-            bpTree.remove(val);
+            std::cin >> key.index >> value;
+            bpTree.remove(key, value);
         }
-
     }
     return 0;
 }
