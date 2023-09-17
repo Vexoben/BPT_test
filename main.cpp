@@ -43,8 +43,6 @@ struct String {
         os << obj.index;
         return os;
     }
-
-
 };
 
 int main() {
@@ -56,7 +54,6 @@ int main() {
     std::cin >> cnt;
     for (int i = 1; i <= cnt; i++) {
         std::cin >> cmd;
-        // scanf("%s", cmd);
         if (cmd[0] == 'i') {
             std::cin >> key.index >> value;
             bpTree.insert(key, value);

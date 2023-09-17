@@ -3,14 +3,13 @@
 
 #include <vector>
 #include <fstream>
+#include "Pair.h"
 #include "StorageSearchTableInterface.h"
 
 namespace trainsys {
 
-template <class FirstType, class SecondType> struct Pair;
-
 template<class KeyType, class ValueType, int M = 100, int L = 100>
-class BPTree : public StorageSearchTable<KeyType, ValueType> {
+class BPlusTree : public StorageSearchTable<KeyType, ValueType> {
 private:
     std::fstream treeNodeFile, leafFile;  // 存放树节点的文件和叶子节点的文件
     int rearTreeNode, rearLeaf;           // 最后一个树节点的位置和最后一个叶子节点的位置
@@ -45,7 +44,7 @@ private:
 
 public:
     // 构造函数；从文件中读取必要信息，在内存中记录树的根节点，元素个数等关键信息
-    explicit BPTree(const std::string &name) {
+    explicit BPlusTree(const std::string &name) {
         treeNodeFileName = name + "_treeNodeFile", leafFileName = name + "_leafFile";
         // 打开文件，一个存放树节点，一个存放叶子节点
         treeNodeFile.open(treeNodeFileName);
@@ -88,7 +87,7 @@ public:
     }
 
     // 析构函数；将树的根节点，被删除的节点的位置等信息写入文件
-    ~BPTree() {
+    ~BPlusTree() {
         // 将树的根节点、最后一个树节点的位置写入文件
         treeNodeFile.seekg(0), leafFile.seekg(0);
         treeNodeFile.write(reinterpret_cast<char *>(&root.pos), sizeof(int));
@@ -172,6 +171,15 @@ public:
         return ans;
     }
 
+    bool contains(const KeyType &key) {
+        return !find(key).empty();
+    }
+
+    //* 需确保该key存在
+    ValueType findFirst(const KeyType &key) {
+        return find(key).visit(0);
+    }
+
     void remove(const KeyType &key, const ValueType &value) {
         if (removeDfs(Pair<KeyType, ValueType>(key, value), root)) {
             if (!root.isBottomNode && root.dataCount == 1) {  // 若根只有一个儿子，且根不为叶子，将儿子作为新的根
@@ -183,10 +191,16 @@ public:
         }
     }
 
+    void removeAll(const KeyType &key) {
+        while (contains(key)) {
+            remove(key, findFirst(key));
+        }
+    }
+
     // 修改记录，等价于先删除再插入
     void modify(const KeyType &key, const ValueType &oldValue, const ValueType &newValue) {
-        remove(Pair<KeyType, ValueType>(key, oldValue));
-        insert(Pair<KeyType, ValueType>(key, newValue));
+        remove(key, oldValue);
+        insert(key, newValue);
     }
 
     // 清空B+树
