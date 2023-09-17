@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstring>
-#include "bptree.hpp"
+#include "BPlusTree.h"
 #include "List.h"
 #include "Pair.h"
 
@@ -46,7 +46,7 @@ struct String {
 };
 
 int main() {
-    trainsys::BPTree<String, int> bpTree("test");
+    trainsys::BPlusTree<String, int> bpTree("test");
     String key;
     int value;
     int cnt;

@@ -1,0 +1,42 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/f/github/BPT_test/BPlusTree.h
+vector
+-
+fstream
+-
+Pair.h
+/mnt/f/github/BPT_test/Pair.h
+StorageSearchTableInterface.h
+/mnt/f/github/BPT_test/StorageSearchTableInterface.h
+
+/mnt/f/github/BPT_test/List.h
+iostream
+-
+
+/mnt/f/github/BPT_test/Pair.h
+
+/mnt/f/github/BPT_test/StorageSearchTableInterface.h
+List.h
+/mnt/f/github/BPT_test/List.h
+
+/mnt/f/github/BPT_test/main.cpp
+iostream
+-
+cstdio
+-
+cstring
+-
+BPlusTree.h
+/mnt/f/github/BPT_test/BPlusTree.h
+List.h
+/mnt/f/github/BPT_test/List.h
+Pair.h
+/mnt/f/github/BPT_test/Pair.h
+
